@@ -1,0 +1,1694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HydraTrace Dashboard</title>
+
+    <!-- Tailwind CSS for Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React and ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for compiling JSX in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Recharts dependencies -->
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-is@18.2.0/umd/react-is.production.min.js"></script>
+    
+    <!-- Recharts (Pinned to stable UMD version) -->
+    <script src="https://unpkg.com/recharts@2.1.12/umd/Recharts.js"></script>
+
+    <style>
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        body { margin: 0; padding: 0; background-color: #f8fafc; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+        const { 
+            BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, 
+            Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, ComposedChart, LabelList
+        } = window.Recharts;
+
+        // --- ICON COMPONENTS ---
+        const IconDroplet = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"></path></svg>);
+        const IconDashboard = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>);
+        const IconSettings = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>);
+        const IconPlus = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>);
+        const IconTrending = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>);
+        const IconLineChart = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 3 3 21 21 21"></polyline><polyline points="3 14 8 9 13 14 21 6"></polyline></svg>);
+        const IconTable = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="9" x2="9" y2="21"></line><line x1="15" y1="9" x2="15" y2="21"></line></svg>);
+        const IconTrash = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>);
+        const IconEdit = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>);
+        const IconDownload = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>);
+        const IconCalendar = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>);
+        const IconActivity = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>);
+        const IconInventory = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>);
+        const IconWarning = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>);
+        const IconTruck = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>);
+        const IconCloud = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>);
+        const IconCloudOff = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22.61 16.95A4.5 4.5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0 4 15h9a4.5 4.5 0 0 0 1.73-.35"/><line x1="2" y1="2" x2="22" y2="22"/></svg>);
+        const IconPlant = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 2a10 10 0 0 1 8 4h-2a8 8 0 0 0-12 0H4a10 10 0 0 1 8-4z"/><path d="M12 10a6 6 0 0 1 4.5 2H19a8 8 0 0 0-14 0h2.5A6 6 0 0 1 12 10z"/><path d="M12 18a2 2 0 0 1 1 0.27V22h-2v-3.73a2 2 0 0 1 1-.27z"/></svg>);
+        const IconCheck = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="20 6 9 17 4 12"></polyline></svg>);
+        const IconX = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>);
+        const IconLock = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>);
+        const IconLogout = ({ size = 24, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>);
+
+        // Local testing API URL
+        const API_URL = 'https://mashashmi.pythonanywhere.com/api/data';
+
+        const DEFAULT_PLANTS_CONFIG = {
+            "Main Plant": {
+                "AP3": ["Entry Power Pack", "Shear Welder Power Pack", "Steering#1,2&3 Power Pack", "Steering#4 Power Pack", "Scale Breaker Power Pack", "Steering#4A Power Pack", "Steering#5 Power Pack", "Edge Guide Power Pack", "Exit Power Pack"],
+                "CP1": ["Aux Power Pack", "Edge Guide Power Pack"],
+                "CP2": ["CPC Power Pack (Uncoiler)", "Aux Power Pack", "Edge Guide Power Pack (Recoiler)"],
+                "CP3": ["Aux Power Pack"]
+            }
+        };
+
+        const INITIAL_RECORDS = [
+            { id: '1', date: '2026-07-02', shift: 'Shift A', plant: 'Main Plant', line: 'AP3', powerPack: 'Exit Power Pack', tankLevel: 80, amount: 210, person: 'SANJAY ROHILLA', pressure: 120, temperature: 46, runningPump: 'Main Pump', mainPumpStatus: 'OK', standbyPumpStatus: 'OK', elcStatus: 'OK' },
+            { id: '2', date: '2026-07-13', shift: 'Shift A', plant: 'Main Plant', line: 'CP1', powerPack: 'Aux Power Pack', tankLevel: 65, amount: 40, person: 'SANJAY ROHILLA', pressure: 110, temperature: 38, runningPump: 'Main Pump', mainPumpStatus: 'OK', standbyPumpStatus: 'OK', elcStatus: 'OK' },
+            { id: '3', date: '2026-07-13', shift: 'Shift B', plant: 'Main Plant', line: 'CP2', powerPack: 'CPC Power Pack (Uncoiler)', tankLevel: 55, amount: 30, person: 'SANJAY ROHILLA', pressure: 115, temperature: 40, runningPump: 'Standby Pump', mainPumpStatus: 'Not OK', standbyPumpStatus: 'OK', elcStatus: 'Cleaning Required' }
+        ];
+
+        const CustomPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, value }) => {
+            const RADIAN = Math.PI / 180;
+            const radius = innerRadius + (outerRadius - innerRadius) * 0.5; 
+            const x = cx + radius * Math.cos(-midAngle * RADIAN);
+            const y = cy + radius * Math.sin(-midAngle * RADIAN);
+            
+            if (value === 0) return null;
+
+            return (
+                <text x={x} y={y} fill="#ffffff" textAnchor="middle" dominantBaseline="central" className="text-xs font-bold" style={{ textShadow: '0px 1px 3px rgba(0,0,0,0.7)' }}>
+                    {`${name}: ${value}L`}
+                </text>
+            );
+        };
+
+        const CustomTrendTooltip = ({ active, payload, label }) => {
+            if (active && payload && payload.length) {
+                const data = payload[0].payload;
+                return (
+                    <div className="bg-white p-3 rounded-lg shadow-md border border-slate-200 text-xs min-w-[220px] z-50">
+                        <p className="font-bold text-slate-800 mb-2 border-b border-slate-100 pb-1 text-sm">{label}</p>
+                        <div className="space-y-1.5 mb-3">
+                            {payload.map((entry, index) => (
+                                (entry.value > 0 || entry.value !== null) ? (
+                                    <div key={index} className="flex justify-between items-center gap-4">
+                                        <span style={{color: entry.color}} className="font-semibold">{entry.name}:</span>
+                                        <span className="font-bold text-slate-700">{entry.value}</span>
+                                    </div>
+                                ) : null
+                            ))}
+                        </div>
+                        {(data.pressure || data.temperature || data.runningPump !== '--' || data.elcStatus !== '--') && (
+                            <div className="mt-2 pt-2 border-t border-slate-100 bg-slate-50 -mx-3 -mb-3 p-3 rounded-b-lg">
+                                <div className="font-bold text-[10px] text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-200 pb-1">Machine Status</div>
+                                <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px]">
+                                    <div className="text-slate-500 font-medium">Running:</div>
+                                    <div className="font-bold text-slate-800 text-right">{data.runningPump}</div>
+                                    <div className="text-slate-500 font-medium">Main Pump:</div>
+                                    <div className={`font-bold text-right ${data.mainStatus === 'OK' ? 'text-emerald-600' : data.mainStatus === '--' ? 'text-slate-400' : 'text-red-500'}`}>{data.mainStatus}</div>
+                                    <div className="text-slate-500 font-medium">Stdby Pump:</div>
+                                    <div className={`font-bold text-right ${data.stdbyStatus === 'OK' ? 'text-emerald-600' : data.stdbyStatus === '--' ? 'text-slate-400' : 'text-red-500'}`}>{data.stdbyStatus}</div>
+                                    <div className="text-slate-500 font-medium mt-1">ELC Machine:</div>
+                                    <div className={`font-bold text-right mt-1 ${data.elcStatus === 'OK' ? 'text-emerald-600' : data.elcStatus === 'Cleaning Required' ? 'text-amber-500' : data.elcStatus === '--' ? 'text-slate-400' : 'text-red-500'}`}>{data.elcStatus}</div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+            return null;
+        };
+
+        function App() {
+            // --- AUTH STATE ---
+            const [currentUser, setCurrentUser] = useState(() => {
+                const savedSession = localStorage.getItem('hydraulicCurrentSession');
+                if (savedSession) {
+                    try { return JSON.parse(savedSession); } catch(e) {}
+                }
+                return null;
+            }); 
+            
+            const [authCredentials, setAuthCredentials] = useState(() => {
+                const saved = localStorage.getItem('hydraulicAuthConfig');
+                if (saved) {
+                    try { return JSON.parse(saved); } catch(e) {}
+                }
+                return { admin: 'admin', plants: { "Main Plant": "1234" } };
+            });
+
+            // Login UI State
+            const [loginRole, setLoginRole] = useState('plant');
+            const [loginPlant, setLoginPlant] = useState('');
+            const [loginPassword, setLoginPassword] = useState('');
+            const [loginError, setLoginError] = useState('');
+
+            // --- APP STATE ---
+            const [activeTab, setActiveTab] = useState('overview');
+            const [selectedMonth, setSelectedMonth] = useState('All');
+            const [activePlantContext, setActivePlantContext] = useState('All'); 
+            const [editingId, setEditingId] = useState(null);
+            
+            // Cloud Sync States
+            const [isOnline, setIsOnline] = useState(false);
+            const [syncStatus, setSyncStatus] = useState('Checking Connection...');
+
+            // Database States
+            const [plantsConfig, setPlantsConfig] = useState(() => {
+                const savedNew = localStorage.getItem('hydraulicPlantsConfig');
+                if (savedNew) {
+                    try { return JSON.parse(savedNew); } catch(e){}
+                }
+                return DEFAULT_PLANTS_CONFIG;
+            });
+
+            const [powerPackSpecs, setPowerPackSpecs] = useState(() => {
+                const saved = localStorage.getItem('hydraulicSpecs');
+                return saved ? JSON.parse(saved) : {};
+            });
+
+            const [records, setRecords] = useState(() => {
+                const saved = localStorage.getItem('hydraulicDataDB');
+                let parsed = INITIAL_RECORDS;
+                if (saved) { try { parsed = JSON.parse(saved); } catch (e) {} }
+                const defaultPlant = Object.keys(plantsConfig)[0] || 'Main Plant';
+                return parsed.map(r => ({ ...r, plant: r.plant || defaultPlant }));
+            });
+
+            const [inventoryState, setInventoryState] = useState(() => {
+                const saved = localStorage.getItem('hydraulicInventory');
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        if (parsed.currentStock !== undefined) return { "Main Plant": { ...parsed, loanedStock: parsed.loanedStock || 0 } };
+                        return parsed;
+                    } catch(e) {}
+                }
+                return { "Main Plant": { currentStock: 1500, safetyStock: 300, loanedStock: 0 } };
+            });
+
+            const [inventoryLogs, setInventoryLogs] = useState(() => {
+                const saved = localStorage.getItem('hydraulicInventoryLogs');
+                if (saved) { try { return JSON.parse(saved).map(log => ({...log, plant: log.plant || "Main Plant"})); } catch(e){} }
+                return [];
+            });
+
+            // Initialize Login Plant Selection
+            useEffect(() => {
+                const plants = Object.keys(plantsConfig);
+                if (plants.length > 0 && !loginPlant) setLoginPlant(plants[0]);
+            }, [plantsConfig, loginPlant]);
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (loginRole === 'admin') {
+                    if (loginPassword === authCredentials.admin) {
+                        const userSession = { role: 'admin' };
+                        setCurrentUser(userSession);
+                        localStorage.setItem('hydraulicCurrentSession', JSON.stringify(userSession));
+                        setActivePlantContext('All');
+                        setLoginError('');
+                    } else {
+                        setLoginError('Invalid Admin Password');
+                    }
+                } else {
+                    const pass = authCredentials.plants[loginPlant] || '1234';
+                    if (loginPassword === pass) {
+                        const userSession = { role: 'plant', plantName: loginPlant };
+                        setCurrentUser(userSession);
+                        localStorage.setItem('hydraulicCurrentSession', JSON.stringify(userSession));
+                        setActivePlantContext(loginPlant);
+                        setLoginError('');
+                    } else {
+                        setLoginError('Invalid Plant Password');
+                    }
+                }
+                setLoginPassword('');
+            };
+
+            const handleLogout = () => {
+                setCurrentUser(null);
+                localStorage.removeItem('hydraulicCurrentSession');
+                setLoginPassword('');
+                setLoginError('');
+                setActiveTab('overview');
+            };
+
+            const getTodayDate = () => new Date().toISOString().split('T')[0];
+            const [formData, setFormData] = useState({
+                date: getTodayDate(), shift: 'General', plant: '', line: '', powerPack: '', tankLevel: '', amount: '', person: '',
+                pressure: '', temperature: '', runningPump: 'Main Pump', mainPumpStatus: 'OK', standbyPumpStatus: 'OK', elcStatus: 'OK'
+            });
+
+            // UI specific states
+            const [editingSpecKey, setEditingSpecKey] = useState(null);
+            const [specForm, setSpecForm] = useState({ dimensions: '', alarmLevel: '', tripLevel: '' });
+            const [detailsPlant, setDetailsPlant] = useState('');
+            const [detailsLine, setDetailsLine] = useState('');
+            const [trendPlant, setTrendPlant] = useState('');
+            const [trendLine, setTrendLine] = useState('');
+            const [trendPack, setTrendPack] = useState('');
+            const [logLineFilter, setLogLineFilter] = useState('All');
+            const [showOnlyTopUps, setShowOnlyTopUps] = useState(false);
+            
+            // Config specific states
+            const [newPlantInput, setNewPlantInput] = useState('');
+            const [editingPlantId, setEditingPlantId] = useState(null);
+            const [editPlantNameInput, setEditPlantNameInput] = useState('');
+            const [selectedConfigPlant, setSelectedConfigPlant] = useState('');
+            const [newLineInput, setNewLineInput] = useState('');
+            const [selectedConfigLine, setSelectedConfigLine] = useState('');
+            const [newPackInput, setNewPackInput] = useState('');
+            const [invPlantContext, setInvPlantContext] = useState('');
+            const [configError, setConfigError] = useState('');
+
+            const showError = (msg) => { setConfigError(msg); setTimeout(() => setConfigError(''), 5000); };
+
+            // Lock context if Plant User
+            useEffect(() => {
+                if (currentUser?.role === 'plant') {
+                    setActivePlantContext(currentUser.plantName);
+                    setDetailsPlant(currentUser.plantName);
+                    setTrendPlant(currentUser.plantName);
+                    setInvPlantContext(currentUser.plantName);
+                    setFormData(prev => ({ ...prev, plant: currentUser.plantName }));
+                }
+            }, [currentUser]);
+
+            useEffect(() => {
+                const plantKeys = Object.keys(plantsConfig);
+                if (plantKeys.length > 0) {
+                    const p = currentUser?.role === 'plant' ? currentUser.plantName : (formData.plant && plantsConfig[formData.plant] ? formData.plant : plantKeys[0]);
+                    const lines = Object.keys(plantsConfig[p] || {});
+                    const l = formData.line && lines.includes(formData.line) ? formData.line : (lines[0] || '');
+                    const packs = plantsConfig[p]?.[l] || [];
+                    const pp = formData.powerPack && packs.includes(formData.powerPack) ? formData.powerPack : (packs[0] || '');
+                    
+                    if (formData.plant !== p || formData.line !== l || formData.powerPack !== pp) {
+                        setFormData(prev => ({ ...prev, plant: p, line: l, powerPack: pp }));
+                    }
+                }
+            }, [plantsConfig, formData.plant, formData.line, formData.powerPack, currentUser]);
+
+            useEffect(() => {
+                const fetchData = async () => {
+                    try {
+                        const response = await fetch(API_URL);
+                        if (!response.ok) throw new Error('Network response was not ok');
+                        const data = await response.json();
+                        
+                        let latestConfig = plantsConfig;
+                        if (data.plantsConfig) {
+                            latestConfig = data.plantsConfig;
+                            setPlantsConfig(latestConfig);
+                        } else if (data.plantHierarchy) {
+                            const oldName = data.plantName || 'Main Plant';
+                            latestConfig = (Object.values(data.plantHierarchy)[0] instanceof Array) ? { [oldName]: data.plantHierarchy } : data.plantHierarchy;
+                            setPlantsConfig(latestConfig);
+                        }
+
+                        if (data.records) setRecords(data.records.map(r => ({ ...r, plant: r.plant || (Object.keys(latestConfig)[0] || 'Main Plant') })));
+                        if (data.inventoryState) {
+                            if (data.inventoryState.currentStock !== undefined) setInventoryState({ "Main Plant": { ...data.inventoryState, loanedStock: data.inventoryState.loanedStock || 0 } });
+                            else setInventoryState(data.inventoryState);
+                        }
+                        if (data.inventoryLogs) setInventoryLogs(data.inventoryLogs.map(log => ({...log, plant: log.plant || "Main Plant"})));
+                        if (data.powerPackSpecs) setPowerPackSpecs(data.powerPackSpecs);
+                        if (data.authCredentials) setAuthCredentials(data.authCredentials);
+                        
+                        setIsOnline(true); setSyncStatus('Cloud Synced');
+                    } catch (error) {
+                        setIsOnline(false); setSyncStatus('Offline (Local)');
+                    }
+                };
+                fetchData();
+            }, []);
+
+            useEffect(() => {
+                if (currentUser?.role === 'plant') return; // Locked to plant
+                if (activePlantContext !== 'All') {
+                    setDetailsPlant(activePlantContext); setTrendPlant(activePlantContext); setInvPlantContext(activePlantContext);
+                } else {
+                    const firstPlant = Object.keys(plantsConfig)[0] || '';
+                    if (!plantsConfig[detailsPlant]) setDetailsPlant(firstPlant);
+                    if (!plantsConfig[trendPlant]) setTrendPlant(firstPlant);
+                    if (!plantsConfig[invPlantContext]) setInvPlantContext(firstPlant);
+                }
+            }, [activePlantContext, plantsConfig, currentUser]);
+
+            useEffect(() => {
+                const lines = Object.keys(plantsConfig[detailsPlant] || {});
+                if (!lines.includes(detailsLine)) setDetailsLine(lines[0] || '');
+            }, [detailsPlant, plantsConfig, detailsLine]);
+
+            useEffect(() => {
+                const lines = Object.keys(plantsConfig[trendPlant] || {});
+                if (!lines.includes(trendLine)) setTrendLine(lines[0] || '');
+            }, [trendPlant, plantsConfig, trendLine]);
+
+            useEffect(() => {
+                const packs = plantsConfig[trendPlant]?.[trendLine] || [];
+                if (!packs.includes(trendPack)) setTrendPack(packs[0] || '');
+            }, [trendLine, trendPlant, plantsConfig, trendPack]);
+
+            useEffect(() => {
+                if (!plantsConfig[selectedConfigPlant]) setSelectedConfigPlant(Object.keys(plantsConfig)[0] || '');
+            }, [plantsConfig, selectedConfigPlant]);
+
+            useEffect(() => {
+                const lines = Object.keys(plantsConfig[selectedConfigPlant] || {});
+                if (!lines.includes(selectedConfigLine)) setSelectedConfigLine(lines[0] || '');
+            }, [selectedConfigPlant, plantsConfig, selectedConfigLine]);
+
+            const saveAllData = async (newRecords, newInventoryState, newInventoryLogs, newPlantsConfig, newSpecs, newAuth) => {
+                const finalConfig = newPlantsConfig || plantsConfig;
+                const finalSpecs = newSpecs || powerPackSpecs;
+                const finalAuth = newAuth || authCredentials;
+
+                setRecords(newRecords); setInventoryState(newInventoryState); setInventoryLogs(newInventoryLogs);
+                setPlantsConfig(finalConfig); setPowerPackSpecs(finalSpecs); setAuthCredentials(finalAuth);
+                
+                localStorage.setItem('hydraulicDataDB', JSON.stringify(newRecords));
+                localStorage.setItem('hydraulicInventory', JSON.stringify(newInventoryState));
+                localStorage.setItem('hydraulicInventoryLogs', JSON.stringify(newInventoryLogs));
+                localStorage.setItem('hydraulicPlantsConfig', JSON.stringify(finalConfig));
+                localStorage.setItem('hydraulicSpecs', JSON.stringify(finalSpecs));
+                localStorage.setItem('hydraulicAuthConfig', JSON.stringify(finalAuth));
+                
+                try {
+                    setSyncStatus('Syncing...');
+                    const response = await fetch(API_URL, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            records: newRecords, inventoryState: newInventoryState, inventoryLogs: newInventoryLogs,
+                            plantsConfig: finalConfig, powerPackSpecs: finalSpecs, authCredentials: finalAuth
+                        })
+                    });
+                    if (!response.ok) throw new Error('Failed to save to cloud');
+                    setIsOnline(true); setSyncStatus('Cloud Synced');
+                } catch (error) {
+                    setIsOnline(false); setSyncStatus('Offline (Local)');
+                }
+            };
+
+            const updateAdminPassword = (newPass) => {
+                if(!newPass) return;
+                const newAuth = { ...authCredentials, admin: newPass };
+                saveAllData(records, inventoryState, inventoryLogs, plantsConfig, powerPackSpecs, newAuth);
+                alert("Admin password updated successfully.");
+            };
+
+            const updatePlantPassword = (plantName, newPass) => {
+                if(!newPass) return;
+                const newAuth = { ...authCredentials, plants: { ...authCredentials.plants, [plantName]: newPass } };
+                saveAllData(records, inventoryState, inventoryLogs, plantsConfig, powerPackSpecs, newAuth);
+                alert(`${plantName} password updated successfully.`);
+            };
+
+            const COLORS = useMemo(() => {
+                const baseColors = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#f43f5e", "#14b8a6"];
+                const mapped = {}; let index = 0;
+                Object.entries(plantsConfig).forEach(([pName, pLines]) => {
+                    Object.keys(pLines).forEach(line => {
+                        if (!mapped[line]) { mapped[line] = baseColors[index % baseColors.length]; mapped[`${pName} - ${line}`] = baseColors[index % baseColors.length]; index++; } 
+                        else mapped[`${pName} - ${line}`] = mapped[line];
+                    });
+                });
+                mapped["Other"] = "#64748b"; return mapped;
+            }, [plantsConfig]);
+
+            const availableMonths = useMemo(() => {
+                const months = new Set(records.filter(r => r.date?.length >= 7).map(r => r.date.substring(0, 7))); 
+                return Array.from(months).sort().reverse();
+            }, [records]);
+
+            const activeRecords = useMemo(() => {
+                return records.filter(r => {
+                    const matchMonth = selectedMonth === 'All' || (r.date && r.date.startsWith(selectedMonth));
+                    const matchPlant = activePlantContext === 'All' ? true : r.plant === activePlantContext;
+                    return matchMonth && matchPlant;
+                });
+            }, [records, selectedMonth, activePlantContext]);
+
+            const totalConsumption = activeRecords.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+            
+            const consumptionByLine = useMemo(() => {
+                const data = {};
+                activeRecords.forEach(r => { 
+                    const key = activePlantContext === 'All' ? `${r.plant} - ${r.line}` : r.line;
+                    data[key] = (data[key] || 0) + (Number(r.amount) || 0); 
+                });
+                return Object.keys(data).map(key => ({ name: key, value: data[key] })).filter(d => d.value > 0);
+            }, [activeRecords, activePlantContext]);
+
+            const powerPackRankings = useMemo(() => {
+                const packs = {};
+                activeRecords.forEach(r => {
+                    const key = activePlantContext === 'All' ? `${r.plant}: ${r.line} - ${r.powerPack}` : `${r.line} - ${r.powerPack}`;
+                    packs[key] = (packs[key] || 0) + (Number(r.amount) || 0);
+                });
+                return Object.keys(packs).map(key => ({ name: key, amount: packs[key] })).sort((a, b) => b.amount - a.amount);
+            }, [activeRecords, activePlantContext]);
+
+            const linePacksData = useMemo(() => {
+                const packs = plantsConfig[detailsPlant]?.[detailsLine] || [];
+                return packs.map(pack => {
+                    const amount = activeRecords.filter(r => r.plant === detailsPlant && r.line === detailsLine && r.powerPack === pack).reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+                    return { name: pack, amount };
+                });
+            }, [activeRecords, detailsPlant, detailsLine, plantsConfig]);
+
+            const singlePackTrendData = useMemo(() => {
+                const packRecords = activeRecords.filter(r => r.plant === trendPlant && r.line === trendLine && r.powerPack === trendPack).sort((a, b) => new Date(a.date) - new Date(b.date));
+                return packRecords.map(r => ({
+                    date: r.date, amount: Number(r.amount) || 0, tankLevel: r.tankLevel ? Number(r.tankLevel) : null,
+                    pressure: r.pressure ? Number(r.pressure) : null, temperature: r.temperature ? Number(r.temperature) : null,
+                    runningPump: r.runningPump || '--', mainStatus: r.mainPumpStatus || r.pumpStatus || '--',
+                    stdbyStatus: r.standbyPumpStatus || '--', elcStatus: r.elcStatus || '--'
+                }));
+            }, [activeRecords, trendPlant, trendLine, trendPack]);
+
+            const viewAvailableLines = useMemo(() => {
+                const linesSet = new Set();
+                if (activePlantContext === 'All') Object.values(plantsConfig).forEach(pLines => Object.keys(pLines).forEach(l => linesSet.add(l)));
+                else Object.keys(plantsConfig[activePlantContext] || {}).forEach(l => linesSet.add(l));
+                return Array.from(linesSet);
+            }, [plantsConfig, activePlantContext]);
+
+            const currentPlantInv = inventoryState[invPlantContext] || { currentStock: 0, safetyStock: 0, loanedStock: 0 };
+            const plantInvLogs = inventoryLogs.filter(l => l.plant === invPlantContext);
+            const plantRecords = records.filter(r => r.plant === invPlantContext);
+
+            const inventoryMetrics = useMemo(() => {
+                const today = new Date(); let dailyAvg = 5; 
+                if (plantRecords.length > 0) {
+                    const sortedDates = [...plantRecords].map(r => new Date(r.date)).sort((a,b) => a-b);
+                    const daysDiff = Math.max(1, Math.ceil(Math.abs(sortedDates[sortedDates.length - 1] - sortedDates[0]) / (1000 * 60 * 60 * 24)));
+                    const totalVol = plantRecords.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+                    dailyAvg = totalVol / daysDiff;
+                    if (dailyAvg === 0) dailyAvg = 5;
+                }
+                const daysRemaining = Math.max(0, Math.floor(currentPlantInv.currentStock / dailyAvg));
+                const depletionDate = new Date(today); depletionDate.setDate(depletionDate.getDate() + daysRemaining);
+                const forecastData = []; let simulatedStock = currentPlantInv.currentStock;
+                for(let i=0; i<=30; i++) {
+                    const fDate = new Date(today); fDate.setDate(fDate.getDate() + i);
+                    forecastData.push({ date: fDate.toLocaleDateString('en-US', {month: 'short', day: 'numeric'}), projectedStock: Math.max(0, Math.round(simulatedStock)), safetyLimit: currentPlantInv.safetyStock });
+                    simulatedStock -= dailyAvg;
+                }
+                return {
+                    dailyAvg: dailyAvg.toFixed(1), daysRemaining,
+                    depletionDate: isNaN(depletionDate.getTime()) ? 'Unknown' : depletionDate.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}),
+                    forecastData, status: daysRemaining < 10 ? 'CRITICAL' : daysRemaining < 30 ? 'WARNING' : 'HEALTHY',
+                    colorClass: daysRemaining < 10 ? 'text-red-600' : daysRemaining < 30 ? 'text-amber-600' : 'text-emerald-600',
+                    bgClass: daysRemaining < 10 ? 'bg-red-50' : daysRemaining < 30 ? 'bg-amber-50' : 'bg-emerald-50'
+                };
+            }, [plantRecords, currentPlantInv]);
+
+            const handleFormChange = (e) => {
+                const { name, value } = e.target;
+                if (name === 'plant') {
+                    const lines = Object.keys(plantsConfig[value] || {});
+                    const firstLine = lines[0] || '';
+                    const firstPack = firstLine ? (plantsConfig[value][firstLine] || [])[0] || '' : '';
+                    setFormData({ ...formData, plant: value, line: firstLine, powerPack: firstPack });
+                } else if (name === 'line') {
+                    const firstPack = (plantsConfig[formData.plant][value] || [])[0] || '';
+                    setFormData({ ...formData, line: value, powerPack: firstPack });
+                } else {
+                    setFormData({ ...formData, [name]: value });
+                }
+            };
+
+            const handleSubmitRecord = (e) => {
+                e.preventDefault();
+                if (!formData.plant || !formData.line || !formData.powerPack) return;
+                if (!formData.amount && !formData.tankLevel) return; 
+
+                const amt = parseFloat(formData.amount) || 0;
+                const plantInv = inventoryState[formData.plant] || { currentStock: 0, safetyStock: 0, loanedStock: 0 };
+                
+                if (editingId) {
+                    const oldRecord = records.find(r => r.id === editingId);
+                    const diffAmt = amt - (Number(oldRecord.amount) || 0);
+                    const updatedRecords = records.map(r => r.id === editingId ? { 
+                        ...formData, amount: amt, tankLevel: parseFloat(formData.tankLevel)||0,
+                        pressure: parseFloat(formData.pressure)||null, temperature: parseFloat(formData.temperature)||null, id: editingId 
+                    } : r);
+                    const updatedInventory = { ...inventoryState, [formData.plant]: { ...plantInv, currentStock: Math.max(0, plantInv.currentStock - diffAmt) } };
+                    saveAllData(updatedRecords, updatedInventory, inventoryLogs, plantsConfig, powerPackSpecs, authCredentials);
+                    setEditingId(null);
+                } else {
+                    const newRecord = {
+                        ...formData, id: Date.now().toString(), amount: amt, tankLevel: parseFloat(formData.tankLevel)||0,
+                        pressure: parseFloat(formData.pressure)||null, temperature: parseFloat(formData.temperature)||null,
+                        person: formData.person || 'Unknown', shift: formData.shift || 'General'
+                    };
+                    const updatedRecords = [...records, newRecord];
+                    const updatedInventory = { ...inventoryState, [formData.plant]: { ...plantInv, currentStock: Math.max(0, plantInv.currentStock - amt) } };
+                    saveAllData(updatedRecords, updatedInventory, inventoryLogs, plantsConfig, powerPackSpecs, authCredentials);
+                }
+                setFormData(prev => ({ ...prev, amount: '', tankLevel: '', person: '', pressure: '', temperature: '', runningPump: 'Main Pump', mainPumpStatus: 'OK', standbyPumpStatus: 'OK', elcStatus: 'OK' })); 
+            };
+
+            const handleEdit = (record) => {
+                setEditingId(record.id);
+                setFormData({
+                    date: record.date, shift: record.shift || 'General', plant: record.plant, line: record.line,
+                    powerPack: record.powerPack, tankLevel: record.tankLevel ? record.tankLevel.toString() : '',
+                    amount: record.amount ? record.amount.toString() : '', person: record.person,
+                    pressure: record.pressure ? record.pressure.toString() : '', temperature: record.temperature ? record.temperature.toString() : '',
+                    runningPump: record.runningPump || 'Main Pump', mainPumpStatus: record.mainPumpStatus || record.pumpStatus || 'OK',
+                    standbyPumpStatus: record.standbyPumpStatus || 'OK', elcStatus: record.elcStatus || 'OK'
+                });
+                setActiveTab('manage-data'); window.scrollTo(0, 0);
+            };
+
+            const cancelEdit = () => { setEditingId(null); setFormData(prev => ({ ...prev, amount: '', tankLevel: '', person: '', pressure: '', temperature: '', runningPump: 'Main Pump', mainPumpStatus: 'OK', standbyPumpStatus: 'OK', elcStatus: 'OK' })); };
+
+            const handleDelete = (id) => {
+                const recordToDelete = records.find(r => r.id === id);
+                if(recordToDelete) {
+                    const amt = Number(recordToDelete.amount) || 0;
+                    const p = recordToDelete.plant;
+                    const plantInv = inventoryState[p] || { currentStock: 0, safetyStock: 0, loanedStock: 0 };
+                    const updatedRecords = records.filter(r => r.id !== id);
+                    const updatedInventory = { ...inventoryState, [p]: { ...plantInv, currentStock: plantInv.currentStock + amt } };
+                    saveAllData(updatedRecords, updatedInventory, inventoryLogs, plantsConfig, powerPackSpecs, authCredentials);
+                }
+                if (editingId === id) cancelEdit();
+            };
+
+            const handleUpdateInventory = (e) => {
+                e.preventDefault();
+                const newStock = parseFloat(e.target.currentStock.value); const newSafety = parseFloat(e.target.safetyStock.value);
+                if(!isNaN(newStock) && !isNaN(newSafety) && invPlantContext) {
+                    const plantInv = inventoryState[invPlantContext] || { currentStock: 0, safetyStock: 0, loanedStock: 0 };
+                    const updatedInventory = { ...inventoryState, [invPlantContext]: { ...plantInv, currentStock: newStock, safetyStock: newSafety } };
+                    saveAllData(records, updatedInventory, inventoryLogs, plantsConfig, powerPackSpecs, authCredentials);
+                }
+            };
+
+            const handleReceiveOil = (e) => {
+                e.preventDefault();
+                const amount = parseFloat(e.target.receiveAmount.value); const date = e.target.receiveDate.value; const reference = e.target.receiveRef.value;
+                if(!isNaN(amount) && amount > 0 && invPlantContext) {
+                    const newLog = { id: Date.now().toString(), date, amount, reference: reference || 'Stock Replenishment', plant: invPlantContext };
+                    const plantInv = inventoryState[invPlantContext] || { currentStock: 0, safetyStock: 0, loanedStock: 0 };
+                    const updatedInventory = { ...inventoryState, [invPlantContext]: { ...plantInv, currentStock: plantInv.currentStock + amount } };
+                    saveAllData(records, updatedInventory, [newLog, ...inventoryLogs], plantsConfig, powerPackSpecs, authCredentials);
+                    e.target.reset(); e.target.receiveDate.value = getTodayDate();
+                }
+            };
+
+            const handleBorrowOil = (e) => {
+                e.preventDefault();
+                const amount = parseFloat(e.target.borrowAmount.value); const date = e.target.borrowDate.value; const reference = e.target.borrowRef.value;
+                if(!isNaN(amount) && amount > 0 && invPlantContext) {
+                    const newLog = { id: Date.now().toString(), date, amount, reference: `BORROWED (Emergency): ${reference || 'Outside Source'}`, plant: invPlantContext };
+                    const plantInv = inventoryState[invPlantContext] || { currentStock: 0, safetyStock: 0, loanedStock: 0 };
+                    const updatedInventory = { ...inventoryState, [invPlantContext]: { ...plantInv, currentStock: plantInv.currentStock + amount, loanedStock: (plantInv.loanedStock || 0) + amount } };
+                    saveAllData(records, updatedInventory, [newLog, ...inventoryLogs], plantsConfig, powerPackSpecs, authCredentials);
+                    e.target.reset(); e.target.borrowDate.value = getTodayDate();
+                }
+            };
+
+            const handleReturnOil = (e) => {
+                e.preventDefault();
+                const amount = parseFloat(e.target.returnAmount.value); const date = e.target.returnDate.value; const returnRef = e.target.returnRef.value;
+                if(!isNaN(amount) && amount > 0 && invPlantContext) {
+                    const plantInv = inventoryState[invPlantContext] || { currentStock: 0, safetyStock: 0, loanedStock: 0 };
+                    if(amount > plantInv.currentStock) { alert("Not enough current stock to return this amount!"); return; }
+                    const newLog = { id: Date.now().toString(), date, amount: -amount, reference: `RETURNED: ${returnRef} (Loan)`, plant: invPlantContext };
+                    const updatedInventory = { ...inventoryState, [invPlantContext]: { ...plantInv, currentStock: plantInv.currentStock - amount, loanedStock: Math.max(0, (plantInv.loanedStock || 0) - amount) } };
+                    saveAllData(records, updatedInventory, [newLog, ...inventoryLogs], plantsConfig, powerPackSpecs, authCredentials);
+                    e.target.reset(); e.target.returnDate.value = getTodayDate();
+                }
+            };
+
+            const handleDeleteReceipt = (log) => {
+                const p = log.plant || invPlantContext;
+                const plantInv = inventoryState[p] || { currentStock: 0, safetyStock: 0, loanedStock: 0 };
+                let updatedInventory = { ...inventoryState };
+                if (log.reference && log.reference.startsWith('BORROWED (Emergency)')) {
+                    updatedInventory[p] = { ...plantInv, currentStock: Math.max(0, plantInv.currentStock - log.amount), loanedStock: Math.max(0, (plantInv.loanedStock || 0) - log.amount) };
+                } else if (log.reference && log.reference.startsWith('RETURNED:')) {
+                    updatedInventory[p] = { ...plantInv, currentStock: plantInv.currentStock - log.amount, loanedStock: (plantInv.loanedStock || 0) - log.amount };
+                } else {
+                    updatedInventory[p] = { ...plantInv, currentStock: Math.max(0, plantInv.currentStock - log.amount) };
+                }
+                saveAllData(records, updatedInventory, inventoryLogs.filter(l => l.id !== log.id), plantsConfig, powerPackSpecs, authCredentials);
+            };
+
+            const handleAddPlant = (e) => {
+                e.preventDefault(); const cleaned = newPlantInput.trim();
+                if (cleaned && !plantsConfig[cleaned]) {
+                    const updatedConfig = { ...plantsConfig, [cleaned]: {} };
+                    const updatedInv = { ...inventoryState, [cleaned]: { currentStock: 1500, safetyStock: 300, loanedStock: 0 } };
+                    const newAuth = { ...authCredentials, plants: { ...authCredentials.plants, [cleaned]: '1234' } };
+                    saveAllData(records, updatedInv, inventoryLogs, updatedConfig, powerPackSpecs, newAuth);
+                    setNewPlantInput(''); setSelectedConfigPlant(cleaned);
+                }
+            };
+
+            const handleRenamePlant = (oldName) => {
+                const newName = editPlantNameInput.trim();
+                if (!newName || newName === oldName || plantsConfig[newName]) { setEditingPlantId(null); return; }
+                const updatedConfig = { ...plantsConfig, [newName]: plantsConfig[oldName] }; delete updatedConfig[oldName];
+                const updatedRecords = records.map(r => r.plant === oldName ? { ...r, plant: newName } : r);
+                const updatedInvState = { ...inventoryState, [newName]: inventoryState[oldName] || {currentStock: 0, safetyStock: 0, loanedStock: 0} }; delete updatedInvState[oldName];
+                const updatedLogs = inventoryLogs.map(l => l.plant === oldName ? { ...l, plant: newName } : l);
+                const newAuth = { ...authCredentials }; newAuth.plants[newName] = newAuth.plants[oldName] || '1234'; delete newAuth.plants[oldName];
+                
+                saveAllData(updatedRecords, updatedInvState, updatedLogs, updatedConfig, powerPackSpecs, newAuth);
+                setEditingPlantId(null);
+                if (activePlantContext === oldName) setActivePlantContext(newName);
+                if (selectedConfigPlant === oldName) setSelectedConfigPlant(newName);
+            };
+
+            const handleRemovePlant = (plantToRemove) => {
+                if (records.some(r => r.plant === plantToRemove)) { showError(`Cannot delete plant "${plantToRemove}". Active log records exist.`); return; }
+                const updated = { ...plantsConfig }; delete updated[plantToRemove];
+                const updatedInv = { ...inventoryState }; delete updatedInv[plantToRemove];
+                const newAuth = { ...authCredentials }; delete newAuth.plants[plantToRemove];
+                
+                saveAllData(records, updatedInv, inventoryLogs, updated, powerPackSpecs, newAuth);
+                if (selectedConfigPlant === plantToRemove) setSelectedConfigPlant(Object.keys(updated)[0] || '');
+            };
+
+            const handleAddLine = (e) => {
+                e.preventDefault(); const cleanedLine = newLineInput.trim().toUpperCase();
+                if (cleanedLine && selectedConfigPlant && !plantsConfig[selectedConfigPlant]?.[cleanedLine]) {
+                    const updated = { ...plantsConfig, [selectedConfigPlant]: { ...plantsConfig[selectedConfigPlant], [cleanedLine]: [] } };
+                    saveAllData(records, inventoryState, inventoryLogs, updated, powerPackSpecs, authCredentials);
+                    setNewLineInput(''); setSelectedConfigLine(cleanedLine);
+                }
+            };
+
+            const handleRemoveLine = (lineToRemove) => {
+                if (records.some(r => r.plant === selectedConfigPlant && r.line === lineToRemove)) { showError(`Cannot delete line "${lineToRemove}". Records exist.`); return; }
+                const updated = { ...plantsConfig }; delete updated[selectedConfigPlant][lineToRemove];
+                saveAllData(records, inventoryState, inventoryLogs, updated, powerPackSpecs, authCredentials);
+            };
+
+            const handleAddPowerPack = (e) => {
+                e.preventDefault(); const cleanedPack = newPackInput.trim();
+                if (selectedConfigPlant && selectedConfigLine && cleanedPack) {
+                    const currentPacks = plantsConfig[selectedConfigPlant]?.[selectedConfigLine] || [];
+                    if (!currentPacks.includes(cleanedPack)) {
+                        const updated = { ...plantsConfig, [selectedConfigPlant]: { ...plantsConfig[selectedConfigPlant], [selectedConfigLine]: [...currentPacks, cleanedPack] } };
+                        saveAllData(records, inventoryState, inventoryLogs, updated, powerPackSpecs, authCredentials);
+                        setNewPackInput('');
+                    }
+                }
+            };
+
+            const handleRemovePowerPack = (packToRemove) => {
+                if (records.some(r => r.plant === selectedConfigPlant && r.line === selectedConfigLine && r.powerPack === packToRemove)) { showError(`Cannot delete power pack "${packToRemove}". Records exist.`); return; }
+                const currentPacks = plantsConfig[selectedConfigPlant]?.[selectedConfigLine] || [];
+                const updated = { ...plantsConfig, [selectedConfigPlant]: { ...plantsConfig[selectedConfigPlant], [selectedConfigLine]: currentPacks.filter(p => p !== packToRemove) } };
+                saveAllData(records, inventoryState, inventoryLogs, updated, powerPackSpecs, authCredentials);
+            };
+
+            const exportToCSV = () => {
+                if (records.length === 0) return;
+                const headers = ['ID', 'Date', 'Shift', 'Plant', 'Line', 'Power Pack', 'Tank Level', 'Liters Amount', 'Pressure (bar)', 'Temp (C)', 'Running Pump', 'Main Pump Status', 'Standby Pump Status', 'ELC Status', 'Personnel'];
+                const csvRows = [headers.join(',')];
+                activeRecords.forEach(r => {
+                    csvRows.push([r.id, r.date, `"${r.shift || 'General'}"`, `"${r.plant}"`, r.line, `"${r.powerPack}"`, r.tankLevel||0, r.amount||0, r.pressure||'', r.temperature||'', `"${r.runningPump||''}"`, `"${r.mainPumpStatus||r.pumpStatus||''}"`, `"${r.standbyPumpStatus||''}"`, `"${r.elcStatus||''}"`, `"${r.person}"`].join(','));
+                });
+                const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+                const a = document.createElement('a'); a.setAttribute('hidden', ''); a.setAttribute('href', window.URL.createObjectURL(blob)); a.setAttribute('download', `HydraTrace_Export_${getTodayDate()}.csv`);
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            };
+
+            const KPICard = ({ title, value, unit, icon: Icon, colorClass }) => (
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 flex items-center justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
+                        <div className="flex items-baseline gap-1">
+                            <h3 className={`text-3xl font-bold ${colorClass}`}>{value}</h3>
+                            <span className="text-sm font-semibold text-slate-400">{unit}</span>
+                        </div>
+                    </div>
+                    <div className={`p-3 rounded-lg bg-slate-50 text-slate-400`}><Icon size={24} /></div>
+                </div>
+            );
+
+            const formatMonth = (monthString) => {
+                if (!monthString || monthString === 'All') return 'All Time';
+                try {
+                    const parts = monthString.split('-'); if (parts.length !== 2) return monthString;
+                    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+                } catch (error) { return monthString; }
+            };
+
+            // --- LOGIN SCREEN RENDER ---
+            if (!currentUser) {
+                return (
+                    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+                            <div className="flex flex-col items-center mb-8">
+                                <div className="text-blue-500 mb-2"><IconDroplet size={48} /></div>
+                                <h1 className="text-3xl font-bold text-slate-800 tracking-tight leading-tight">HydraTrace</h1>
+                                <span className="text-xs text-blue-500 font-bold tracking-widest uppercase mt-1">By MASHASHMI</span>
+                            </div>
+
+                            <div className="flex gap-2 mb-6 bg-slate-100 p-1 rounded-lg">
+                                <button type="button" onClick={() => { setLoginRole('plant'); setLoginError(''); }} className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${loginRole === 'plant' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Plant Access</button>
+                                <button type="button" onClick={() => { setLoginRole('admin'); setLoginError(''); }} className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${loginRole === 'admin' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Admin Access</button>
+                            </div>
+
+                            <form onSubmit={handleLogin} className="space-y-4">
+                                {loginRole === 'plant' && (
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">Select Facility</label>
+                                        <select value={loginPlant} onChange={(e) => setLoginPlant(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none font-medium">
+                                            {Object.keys(plantsConfig).map(p => <option key={p} value={p}>{p}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">Password</label>
+                                    <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required placeholder="••••••••" className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                                </div>
+                                
+                                {loginError && <p className="text-red-500 text-sm font-bold text-center mt-2">{loginError}</p>}
+                                
+                                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-6 shadow-md">
+                                    Secure Login
+                                </button>
+                            </form>
+                        </div>
+                        <div className="mt-8 text-slate-500 text-sm flex items-center gap-2">
+                            {isOnline ? <span className="flex items-center gap-1 text-emerald-500"><IconCloud size={16}/> API Connected</span> : <span className="flex items-center gap-1 text-red-500"><IconCloudOff size={16}/> Offline Mode</span>}
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col md:flex-row">
+                    
+                    {/* SIDEBAR */}
+                    <div className="w-full md:w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-20">
+                        <div className="p-6 border-b border-slate-800 flex items-center gap-3">
+                            <div className="text-blue-500"><IconDroplet size={28} /></div>
+                            <div className="flex flex-col">
+                                <h1 className="text-xl font-bold text-white tracking-tight leading-tight">HydraTrace</h1>
+                                <span className="text-[10px] text-blue-400 font-bold tracking-widest uppercase mt-0.5">By MASHASHMI</span>
+                            </div>
+                        </div>
+                        <nav className="flex-1 p-4 space-y-2">
+                            <button onClick={() => setActiveTab('overview')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'overview' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'}`}>
+                                <IconDashboard size={20} /> Plant Overview
+                            </button>
+                            <button onClick={() => setActiveTab('line-details')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'line-details' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'}`}>
+                                <IconSettings size={20} /> Line Details
+                            </button>
+                            <button onClick={() => setActiveTab('trends')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'trends' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'}`}>
+                                <IconLineChart size={20} /> Trend Analysis
+                            </button>
+                            <button onClick={() => setActiveTab('inventory')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'inventory' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'}`}>
+                                <IconInventory size={20} /> Oil Inventory
+                            </button>
+                            <button onClick={() => setActiveTab('manage-data')} className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${activeTab === 'manage-data' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'}`}>
+                                <div className="flex items-center gap-3"><IconPlus size={20} /> Manage Data</div>
+                                {editingId && <span className="bg-amber-500 text-amber-950 text-xs px-2 py-0.5 rounded-full font-bold">EDITING</span>}
+                            </button>
+                            {currentUser.role === 'admin' && (
+                                <button onClick={() => setActiveTab('plant-config')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'plant-config' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'}`}>
+                                    <IconPlant size={20} /> System Config
+                                </button>
+                            )}
+                        </nav>
+                        <div className="p-4 border-t border-slate-800 flex flex-col gap-2">
+                            <button onClick={exportToCSV} className="flex items-center justify-center gap-2 w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm rounded transition-colors">
+                                <IconDownload size={16} /> Backup to CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* MAIN CONTENT */}
+                    <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+                        
+                        {/* HEADER */}
+                        <header className="bg-white border-b border-slate-200 px-6 md:px-8 py-4 flex flex-col md:flex-row justify-between items-center sticky top-0 z-10 shadow-sm gap-4">
+                            <div className="flex flex-col">
+                                <h2 className="text-xl md:text-2xl font-bold text-slate-800">
+                                    {activeTab === 'overview' && 'Dashboard Overview'}
+                                    {activeTab === 'line-details' && 'Detailed Line Analytics'}
+                                    {activeTab === 'trends' && 'Power Pack Trend Analysis'}
+                                    {activeTab === 'inventory' && 'Oil Inventory Management'}
+                                    {activeTab === 'manage-data' && 'Data Entry & Records'}
+                                    {activeTab === 'plant-config' && 'Admin Configuration'}
+                                </h2>
+                                <span className="text-xs text-slate-500 font-semibold tracking-wide uppercase mt-0.5">
+                                    {activePlantContext === 'All' ? 'Global View' : activePlantContext}
+                                </span>
+                            </div>
+                            
+                            <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+                                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border ${isOnline ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                                    {isOnline ? <IconCloud size={14}/> : <IconCloudOff size={14}/>}
+                                    {syncStatus}
+                                </div>
+
+                                {currentUser.role === 'admin' ? (
+                                    <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200 flex-1 md:flex-none">
+                                        <div className="pl-2 pr-1 text-slate-400"><IconPlant size={18}/></div>
+                                        <select value={activePlantContext} onChange={(e) => setActivePlantContext(e.target.value)} className="bg-transparent border-none text-sm font-medium text-slate-700 focus:ring-0 cursor-pointer py-1 pr-2 outline-none w-full md:w-auto max-w-[150px]">
+                                            <option value="All">All Plants</option>
+                                            {Object.keys(plantsConfig).map(plant => <option key={plant} value={plant}>{plant}</option>)}
+                                        </select>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center bg-blue-50 border border-blue-200 rounded-lg py-1.5 px-3 text-sm font-bold text-blue-700">
+                                        <IconPlant size={16} className="mr-2 text-blue-500"/> {currentUser.plantName}
+                                    </div>
+                                )}
+
+                                <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200 flex-1 md:flex-none">
+                                    <div className="pl-2 pr-1 text-slate-400"><IconCalendar size={18}/></div>
+                                    <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="bg-transparent border-none text-sm font-medium text-slate-700 focus:ring-0 cursor-pointer py-1 pr-2 outline-none w-full md:w-auto">
+                                        <option value="All">All Time Data</option>
+                                        {availableMonths.map(month => <option key={month} value={month}>{formatMonth(month)}</option>)}
+                                    </select>
+                                </div>
+
+                                <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors font-medium text-sm border border-slate-200">
+                                    <IconLogout size={16} /> Logout
+                                </button>
+                            </div>
+                        </header>
+
+                        <main className="p-4 md:p-8">
+                            
+                            {/* OVERVIEW TAB */}
+                            {activeTab === 'overview' && (
+                                <div className="space-y-6">
+                                    {activeRecords.length === 0 && (
+                                        <div className="bg-amber-50 border border-amber-200 text-amber-700 p-4 rounded-xl flex items-center gap-3">
+                                            <IconActivity size={20} />
+                                            <p>No consumption data recorded for <strong>{formatMonth(selectedMonth)}</strong> in this view.</p>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+                                        <KPICard title={`Total Consumed (${formatMonth(selectedMonth)})`} value={totalConsumption} unit="Liters" icon={IconDroplet} colorClass="text-slate-800" />
+                                        <KPICard title="Remaining Oil Stock" value={currentPlantInv.currentStock} unit="Liters" icon={IconInventory} colorClass={inventoryMetrics.daysRemaining < 10 ? 'text-red-600' : 'text-emerald-600'} />
+                                        <KPICard title="Avg Daily Consumption" value={inventoryMetrics.dailyAvg} unit="L/Day" icon={IconActivity} colorClass="text-blue-600" />
+                                        <KPICard title="Highest Consuming Line" value={consumptionByLine.length > 0 ? [...consumptionByLine].sort((a,b)=>b.value-a.value)[0].name : 'N/A'} unit="" icon={IconTrending} colorClass="text-blue-600" />
+                                        <KPICard title="Total Top-up Events" value={activeRecords.filter(r => (Number(r.amount) || 0) > 0).length} unit="Events" icon={IconTable} colorClass="text-emerald-600" />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                            <h3 className="text-lg font-bold text-slate-800 mb-6">Consumption Share by Line</h3>
+                                            <div className="h-72 flex items-center justify-center">
+                                                {consumptionByLine.length > 0 ? (
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <PieChart>
+                                                            <Pie data={consumptionByLine} cx="50%" cy="50%" innerRadius={60} outerRadius={120} paddingAngle={5} dataKey="value" label={CustomPieLabel} labelLine={false}>
+                                                                {consumptionByLine.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[entry.name] || COLORS.Other} />)}
+                                                            </Pie>
+                                                            <RechartsTooltip formatter={(value) => [`${value} L`, 'Consumption']} />
+                                                            <Legend verticalAlign="bottom" height={36} />
+                                                        </PieChart>
+                                                    </ResponsiveContainer>
+                                                ) : <span className="text-slate-400">No chart data available</span>}
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                            <h3 className="text-lg font-bold text-slate-800 mb-6">Top Consuming Power Packs</h3>
+                                            <div className="h-72 flex items-center justify-center pr-6">
+                                                {powerPackRankings.length > 0 ? (
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <BarChart data={powerPackRankings.slice(0, 5)} layout="vertical" margin={{ top: 5, right: 50, left: 20, bottom: 5 }}>
+                                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                                                            <XAxis type="number" />
+                                                            <YAxis dataKey="name" type="category" width={180} tick={{fontSize: 12}} />
+                                                            <RechartsTooltip formatter={(value) => [`${value} L`, 'Amount']} />
+                                                            <Bar dataKey="amount" fill="#3b82f6" radius={[0, 4, 4, 0]}>
+                                                                <LabelList dataKey="amount" position="right" fill="#475569" fontWeight="bold" formatter={(val) => `${val}L`} />
+                                                            </Bar>
+                                                        </BarChart>
+                                                    </ResponsiveContainer>
+                                                ) : <span className="text-slate-400">No chart data available</span>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* LINE DETAILS TAB */}
+                            {activeTab === 'line-details' && (
+                                <div className="space-y-6">
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center gap-6">
+                                        {currentUser.role === 'admin' && activePlantContext === 'All' && (
+                                            <div className="flex items-center gap-4 flex-wrap">
+                                                <span className="font-semibold text-slate-700">Select Plant:</span>
+                                                <select value={detailsPlant} onChange={(e) => setDetailsPlant(e.target.value)} className="p-2 border border-slate-300 rounded-md outline-none focus:border-blue-500">
+                                                    {Object.keys(plantsConfig).map(plant => <option key={plant} value={plant}>{plant}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
+                                        <div className="flex items-center gap-4 flex-wrap">
+                                            <span className="font-semibold text-slate-700">Select Line:</span>
+                                            {Object.keys(plantsConfig[detailsPlant] || {}).map(line => (
+                                                <button key={line} onClick={() => setDetailsLine(line)} className={`px-5 py-2 rounded-lg font-medium transition-colors ${detailsLine === line ? 'bg-blue-100 text-blue-700 border-2 border-blue-500' : 'bg-slate-50 text-slate-600 border-2 border-transparent hover:bg-slate-100'}`}>
+                                                    {line}
+                                                </button>
+                                            ))}
+                                            {Object.keys(plantsConfig[detailsPlant] || {}).length === 0 && <span className="text-sm text-slate-400">No lines configured.</span>}
+                                        </div>
+                                    </div>
+
+                                    {detailsLine && (
+                                        <>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 border-l-4" style={{borderLeftColor: COLORS[detailsLine] || '#64748b'}}>
+                                                    <h3 className="text-slate-500 text-sm font-medium mb-1">{detailsLine} Total Consumption</h3>
+                                                    <div className="text-3xl font-bold text-slate-800">
+                                                        {activeRecords.filter(r => r.plant === detailsPlant && r.line === detailsLine).reduce((sum, r) => sum + (Number(r.amount) || 0), 0)} <span className="text-base text-slate-400">Liters</span>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 border-l-4" style={{borderLeftColor: COLORS[detailsLine] || '#64748b'}}>
+                                                    <h3 className="text-slate-500 text-sm font-medium mb-1">{detailsLine} Power Packs Tracked</h3>
+                                                    <div className="text-3xl font-bold text-slate-800">
+                                                        {(plantsConfig[detailsPlant]?.[detailsLine] || []).length} <span className="text-base text-slate-400">Units</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                                <h3 className="text-lg font-bold text-slate-800 mb-6">Aggregate Power Pack Consumption ({detailsLine})</h3>
+                                                <div className="h-96">
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <BarChart data={linePacksData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+                                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0"/>
+                                                            <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} tick={{fontSize: 11}} interval={0} />
+                                                            <YAxis />
+                                                            <RechartsTooltip formatter={(value) => [`${value} L`, 'Amount']} cursor={{fill: '#f8fafc'}}/>
+                                                            <Bar dataKey="amount" fill={COLORS[detailsLine] || '#3b82f6'} radius={[4, 4, 0, 0]}>
+                                                                <LabelList dataKey="amount" position="top" fill="#475569" fontWeight="bold" formatter={(val) => val > 0 ? `${val}L` : ''} />
+                                                                {linePacksData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.amount > 0 ? (COLORS[detailsLine] || '#3b82f6') : '#cbd5e1'} />)}
+                                                            </Bar>
+                                                        </BarChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* TRENDS TAB */}
+                            {activeTab === 'trends' && (
+                                <div className="space-y-6">
+                                    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-wrap items-center gap-4">
+                                        {currentUser.role === 'admin' && activePlantContext === 'All' && (
+                                            <div className="flex items-center gap-4 flex-wrap w-full md:w-auto border-r border-slate-200 pr-4">
+                                                <span className="font-semibold text-slate-700">Plant:</span>
+                                                <select value={trendPlant} onChange={(e) => setTrendPlant(e.target.value)} className="p-2 border border-slate-300 rounded-md outline-none">
+                                                    {Object.keys(plantsConfig).map(plant => <option key={plant} value={plant}>{plant}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
+                                        <div className="flex items-center gap-4 flex-wrap w-full md:w-auto">
+                                            <span className="font-semibold text-slate-700">Line:</span>
+                                            <select value={trendLine} onChange={(e) => setTrendLine(e.target.value)} className="p-2 border border-slate-300 rounded-md outline-none">
+                                                {Object.keys(plantsConfig[trendPlant] || {}).map(line => <option key={line} value={line}>{line}</option>)}
+                                            </select>
+                                            <span className="font-semibold text-slate-700 ml-4">Power Pack:</span>
+                                            <select value={trendPack} onChange={(e) => setTrendPack(e.target.value)} className="p-2 border border-slate-300 rounded-md outline-none flex-1 md:flex-none">
+                                                {(plantsConfig[trendPlant]?.[trendLine] || []).map(pack => <option key={pack} value={pack}>{pack}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {(() => {
+                                        const specKey = `${trendPlant}|${trendLine}|${trendPack}`;
+                                        const currentSpecs = powerPackSpecs[specKey] || { dimensions: '1200 x 800 x 1000 mm', alarmLevel: '35', tripLevel: '20' };
+                                        const latestPackRecord = [...activeRecords].filter(r => r.plant === trendPlant && r.line === trendLine && r.powerPack === trendPack).sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+                                        const pressure = latestPackRecord?.pressure || '--'; const temp = latestPackRecord?.temperature || '--';
+                                        const activePump = latestPackRecord?.runningPump || '--'; const mainStatus = latestPackRecord?.mainPumpStatus || latestPackRecord?.pumpStatus || '--';
+                                        const stdbyStatus = latestPackRecord?.standbyPumpStatus || '--'; const elcStatus = latestPackRecord?.elcStatus || '--';
+                                        const elcColor = elcStatus === 'OK' ? 'text-emerald-600' : (elcStatus === 'Cleaning Required' ? 'text-amber-500' : 'text-red-500');
+
+                                        return (
+                                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100">
+                                                    <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+                                                        <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                                            <IconSettings size={16} className="text-slate-400"/> Engineering Specs
+                                                        </h4>
+                                                        {editingSpecKey === specKey ? (
+                                                            <div className="flex gap-2">
+                                                                <button onClick={() => {
+                                                                    const updatedSpecs = { ...powerPackSpecs, [specKey]: specForm };
+                                                                    saveAllData(records, inventoryState, inventoryLogs, plantsConfig, updatedSpecs, authCredentials);
+                                                                    setEditingSpecKey(null);
+                                                                }} className="text-emerald-600 hover:text-emerald-700 transition-colors" title="Save Specs"><IconCheck size={16}/></button>
+                                                                <button onClick={() => setEditingSpecKey(null)} className="text-slate-400 hover:text-slate-600 transition-colors" title="Cancel"><IconX size={16}/></button>
+                                                            </div>
+                                                        ) : (
+                                                            <button onClick={() => { setSpecForm(currentSpecs); setEditingSpecKey(specKey); }} className="text-slate-400 hover:text-blue-500 transition-colors" title="Edit Specs"><IconEdit size={16} /></button>
+                                                        )}
+                                                    </div>
+                                                    
+                                                    {editingSpecKey === specKey ? (
+                                                        <div className="space-y-3 text-sm">
+                                                            <div className="flex flex-col gap-1">
+                                                                <label className="text-xs text-slate-500">Tank Dimensions</label>
+                                                                <input type="text" value={specForm.dimensions} onChange={e => setSpecForm({...specForm, dimensions: e.target.value})} className="w-full p-1 border border-slate-300 rounded outline-none focus:border-blue-500 text-xs font-semibold" />
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <div className="flex flex-col gap-1">
+                                                                    <label className="text-xs text-slate-500">Alarm Level (%)</label>
+                                                                    <input type="number" value={specForm.alarmLevel} onChange={e => setSpecForm({...specForm, alarmLevel: e.target.value})} className="w-full p-1 border border-slate-300 rounded outline-none focus:border-blue-500 text-xs font-semibold" />
+                                                                </div>
+                                                                <div className="flex flex-col gap-1">
+                                                                    <label className="text-xs text-slate-500">Trip Level (%)</label>
+                                                                    <input type="number" value={specForm.tripLevel} onChange={e => setSpecForm({...specForm, tripLevel: e.target.value})} className="w-full p-1 border border-slate-300 rounded outline-none focus:border-blue-500 text-xs font-semibold" />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-3 text-sm">
+                                                            <div className="flex justify-between items-center"><span className="text-slate-500">Tank Dimensions</span> <span className="font-semibold text-slate-700">{currentSpecs.dimensions}</span></div>
+                                                            <div className="flex justify-between items-center"><span className="text-slate-500">Alarm Level (Low)</span> <span className="font-bold text-amber-500">{currentSpecs.alarmLevel}%</span></div>
+                                                            <div className="flex justify-between items-center"><span className="text-slate-500">Tripping Level</span> <span className="font-bold text-red-500">{currentSpecs.tripLevel}%</span></div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 lg:col-span-2">
+                                                    <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+                                                        <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2"><IconActivity size={16} className="text-blue-500"/> Actual Machine Diagnostics</h4>
+                                                        <span className="text-xs text-slate-400">From last log entry: {latestPackRecord?.date || 'N/A'}</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                                            <div className="text-slate-500 text-[10px] font-bold mb-1 uppercase tracking-wider">System Pressure</div>
+                                                            <div className="text-xl font-bold text-slate-800">{pressure} <span className="text-xs text-slate-500">{pressure !== '--' ? 'bar' : ''}</span></div>
+                                                        </div>
+                                                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                                            <div className="text-slate-500 text-[10px] font-bold mb-1 uppercase tracking-wider">Oil Temp</div>
+                                                            <div className="text-xl font-bold text-slate-800">{temp} <span className="text-xs text-slate-500">{temp !== '--' ? '°C' : ''}</span></div>
+                                                        </div>
+                                                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                                            <div className="text-slate-500 text-[10px] font-bold mb-1 uppercase tracking-wider">Pump Status</div>
+                                                            <div className={`text-sm font-bold mt-1 text-slate-800`}>Running: {activePump === 'Main Pump' ? 'Main' : activePump === 'Standby Pump' ? 'Standby' : activePump}</div>
+                                                            <div className="flex gap-3 mt-1">
+                                                                <div className={`text-[10px] font-semibold ${mainStatus === 'OK' ? 'text-blue-700' : 'text-red-500'}`}>Main: {mainStatus}</div>
+                                                                <div className={`text-[10px] font-semibold ${stdbyStatus === 'OK' ? 'text-blue-700' : 'text-red-500'}`}>Stdby: {stdbyStatus}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                                            <div className="text-slate-500 text-[10px] font-bold mb-1 uppercase tracking-wider">ELC Machine</div>
+                                                            <div className={`text-sm font-bold mt-1 ${elcColor}`}>{elcStatus}</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                                            <div>
+                                                <h3 className="text-lg font-bold text-slate-800">Advanced Telemetry Trend: {trendPack}</h3>
+                                                <p className="text-sm text-slate-500">Track oil levels alongside system pressure, temperature, and machine statuses.</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="h-[550px]">
+                                            {singlePackTrendData.length > 0 ? (
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <ComposedChart data={singlePackTrendData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                        <XAxis dataKey="date" tick={{fontSize: 12}} tickMargin={10} />
+                                                        <YAxis yAxisId="left" label={{ value: 'Tank Level % / Temp °C', angle: -90, position: 'insideLeft', style: {textAnchor: 'middle', fill: '#3b82f6'} }} />
+                                                        <YAxis yAxisId="right" orientation="right" label={{ value: 'Oil Added (Liters)', angle: 90, position: 'insideRight', style: {textAnchor: 'middle', fill: '#10b981'} }} />
+                                                        <YAxis yAxisId="pressureAxis" orientation="right" hide={true} domain={['auto', 'auto']} />
+
+                                                        <RechartsTooltip content={<CustomTrendTooltip />} cursor={{fill: '#f1f5f9'}} />
+                                                        <Legend wrapperStyle={{paddingTop: '20px'}} />
+                                                        
+                                                        <Bar yAxisId="right" dataKey="amount" name="Oil Added (Liters)" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40}>
+                                                            <LabelList dataKey="amount" position="top" fill="#475569" fontWeight="bold" formatter={(val) => val > 0 ? `${val}L` : ''} />
+                                                        </Bar>
+                                                        <Line yAxisId="left" type="monotone" dataKey="tankLevel" name="Tank Level" stroke="#3b82f6" strokeWidth={3} dot={{r: 4, strokeWidth: 2}} activeDot={{r: 6}} connectNulls={true} />
+                                                        <Line yAxisId="left" type="monotone" dataKey="temperature" name="Temperature (°C)" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" dot={{r: 3}} activeDot={{r: 5}} connectNulls={true} />
+                                                        <Line yAxisId="pressureAxis" type="monotone" dataKey="pressure" name="Pressure (bar)" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={{r: 3}} activeDot={{r: 5}} connectNulls={true} />
+                                                    </ComposedChart>
+                                                </ResponsiveContainer>
+                                            ) : (
+                                                <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                                                    <IconLineChart size={48} className="mb-4 text-slate-300" />
+                                                    <p>No trend data available for {trendPack} in {formatMonth(selectedMonth)}.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* INVENTORY TAB */}
+                            {activeTab === 'inventory' && (
+                                <div className="space-y-6">
+                                    
+                                    {currentUser.role === 'admin' && activePlantContext === 'All' && (
+                                        <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl flex items-center justify-between gap-4">
+                                            <div className="flex items-center gap-3">
+                                                <IconInventory size={20} className="text-blue-600" />
+                                                <div>
+                                                    <h4 className="font-bold">Inventory is tracked per Plant</h4>
+                                                    <p className="text-sm">Please select a plant to view or manage its specific inventory.</p>
+                                                </div>
+                                            </div>
+                                            <select value={invPlantContext} onChange={(e) => setInvPlantContext(e.target.value)} className="p-2 border border-blue-300 bg-white rounded-md outline-none font-bold text-blue-900 shadow-sm">
+                                                {Object.keys(plantsConfig).map(plant => <option key={plant} value={plant}>{plant}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    {invPlantContext && (
+                                        <>
+                                            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                                                <KPICard title={`${invPlantContext} Current Stock`} value={currentPlantInv.currentStock} unit="Liters" icon={IconInventory} colorClass="text-slate-800" />
+                                                <KPICard title="Loaned Oil (To Return)" value={currentPlantInv.loanedStock || 0} unit="Liters" icon={IconWarning} colorClass={(currentPlantInv.loanedStock || 0) > 0 ? 'text-amber-600' : 'text-slate-400'} />
+                                                <KPICard title="Avg Daily Consumption" value={inventoryMetrics.dailyAvg} unit="L/Day" icon={IconActivity} colorClass="text-blue-600" />
+                                                <KPICard title="Estimated Days Remaining" value={inventoryMetrics.daysRemaining} unit="Days" icon={IconCalendar} colorClass={inventoryMetrics.daysRemaining < 10 ? 'text-red-500' : 'text-emerald-600'} />
+                                                <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 flex items-center justify-between">
+                                                    <div>
+                                                        <p className="text-sm font-medium text-slate-500 mb-1">Projected Depletion</p>
+                                                        <h3 className="text-xl font-bold text-slate-800">{inventoryMetrics.depletionDate}</h3>
+                                                    </div>
+                                                    <div className="p-3 rounded-lg bg-slate-50 text-slate-400">
+                                                        <IconWarning size={24} className={inventoryMetrics.daysRemaining < 10 ? 'text-red-500' : ''} />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                                <div className="lg:col-span-1 space-y-6">
+                                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                                            <span className="text-emerald-500"><IconTruck size={20}/></span> Receive Oil ({invPlantContext})
+                                                        </h3>
+                                                        <form onSubmit={handleReceiveOil} className="space-y-4">
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-slate-700 mb-1">Date Received</label>
+                                                                <input type="date" name="receiveDate" defaultValue={getTodayDate()} required className="w-full p-2 border border-slate-300 rounded-md outline-none focus:border-emerald-500" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-slate-700 mb-1">Amount (Liters)</label>
+                                                                <input type="number" name="receiveAmount" min="1" step="0.1" required placeholder="e.g. 2000" className="w-full p-2 border border-slate-300 rounded-md outline-none focus:border-emerald-500" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-slate-700 mb-1">Invoice / Reference</label>
+                                                                <input type="text" name="receiveRef" placeholder="e.g. PO-98273" className="w-full p-2 border border-slate-300 rounded-md outline-none focus:border-emerald-500" />
+                                                            </div>
+                                                            <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 px-4 rounded-md transition-colors mt-2">
+                                                                Add to {invPlantContext} Stock
+                                                            </button>
+                                                        </form>
+                                                    </div>
+
+                                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                                        <h3 className="text-lg font-bold text-slate-800 mb-2">Physical Audit / Adjust</h3>
+                                                        <p className="text-xs text-slate-500 mb-4">Hard-set values for {invPlantContext}.</p>
+                                                        <form onSubmit={handleUpdateInventory} className="space-y-4">
+                                                            <div className="grid grid-cols-2 gap-4">
+                                                                <div>
+                                                                    <label className="block text-xs font-semibold text-slate-700 mb-1 uppercase">Actual Stock</label>
+                                                                    <input type="number" name="currentStock" defaultValue={currentPlantInv.currentStock} min="0" step="1" required className="w-full p-2 border border-slate-300 rounded-md outline-none focus:border-blue-500" />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-xs font-semibold text-slate-700 mb-1 uppercase">Safety Limit</label>
+                                                                    <input type="number" name="safetyStock" defaultValue={currentPlantInv.safetyStock} min="0" step="1" required className="w-full p-2 border border-slate-300 rounded-md outline-none focus:border-blue-500" />
+                                                                </div>
+                                                            </div>
+                                                            <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-2 px-4 rounded-md transition-colors">
+                                                                Force Sync Stock
+                                                            </button>
+                                                        </form>
+                                                    </div>
+
+                                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-amber-200 bg-amber-50/30">
+                                                        <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2"><span className="text-amber-500"><IconWarning size={20}/></span> Emergency Loan Oil</h3>
+                                                        <p className="text-xs text-slate-500 mb-4">Track oil taken from outside that must be returned.</p>
+                                                        <form onSubmit={handleBorrowOil} className="space-y-3 mb-6 border-b border-amber-100 pb-6">
+                                                            <div>
+                                                                <label className="block text-xs font-semibold text-slate-700 mb-1">Borrow Date</label>
+                                                                <input type="date" name="borrowDate" defaultValue={getTodayDate()} required className="w-full p-2 border border-slate-300 rounded-md outline-none focus:border-amber-500 text-sm" />
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-4">
+                                                                <div>
+                                                                    <label className="block text-xs font-semibold text-slate-700 mb-1">Amount (L)</label>
+                                                                    <input type="number" name="borrowAmount" min="1" step="0.1" required placeholder="Qty" className="w-full p-2 border border-slate-300 rounded-md outline-none focus:border-amber-500 text-sm" />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-xs font-semibold text-slate-700 mb-1">Source / Ref</label>
+                                                                    <input type="text" name="borrowRef" placeholder="Source name" required className="w-full p-2 border border-slate-300 rounded-md outline-none focus:border-amber-500 text-sm" />
+                                                                </div>
+                                                            </div>
+                                                            <button type="submit" className="w-full bg-amber-500 hover:bg-amber-600 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm">Log Borrowed Oil</button>
+                                                        </form>
+                                                        <form onSubmit={handleReturnOil} className="space-y-3">
+                                                            <div className="grid grid-cols-2 gap-4">
+                                                                <div>
+                                                                    <label className="block text-xs font-semibold text-slate-700 mb-1">Return Date</label>
+                                                                    <input type="date" name="returnDate" defaultValue={getTodayDate()} required className="w-full p-2 border border-slate-300 rounded-md outline-none focus:border-amber-500 text-sm" />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-xs font-semibold text-slate-700 mb-1">Amount (L)</label>
+                                                                    <input type="number" name="returnAmount" min="1" step="0.1" max={currentPlantInv.loanedStock || 9999} required placeholder="Qty to return" className="w-full p-2 border border-slate-300 rounded-md outline-none focus:border-amber-500 text-sm" />
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs font-semibold text-slate-700 mb-1">Returned To</label>
+                                                                <input type="text" name="returnRef" placeholder="Name or Source" required className="w-full p-2 border border-slate-300 rounded-md outline-none focus:border-amber-500 text-sm" />
+                                                            </div>
+                                                            <button type="submit" disabled={(currentPlantInv.loanedStock || 0) <= 0} className={`w-full font-medium py-2 px-4 rounded-md transition-colors text-sm ${(currentPlantInv.loanedStock || 0) > 0 ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>Return Loaned Oil</button>
+                                                        </form>
+                                                    </div>
+                                                </div>
+
+                                                <div className="lg:col-span-2 space-y-6">
+                                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                                        <div className="flex justify-between items-start mb-6">
+                                                            <div>
+                                                                <h3 className="text-lg font-bold text-slate-800 mb-1">30-Day Stock Depletion Forecast</h3>
+                                                                <p className="text-sm text-slate-500">Based on historical average consumption of {inventoryMetrics.dailyAvg} L/day.</p>
+                                                            </div>
+                                                            <div className={`px-4 py-2 rounded-lg flex items-center gap-2 border ${inventoryMetrics.bgClass} ${inventoryMetrics.colorClass} border-current border-opacity-20`}>
+                                                                <div className="font-bold text-sm tracking-wide">{inventoryMetrics.status}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="h-64">
+                                                            <ResponsiveContainer width="100%" height="100%">
+                                                                <LineChart data={inventoryMetrics.forecastData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                                    <XAxis dataKey="date" tick={{fontSize: 12}} tickMargin={10} />
+                                                                    <YAxis label={{ value: 'Liters Remaining', angle: -90, position: 'insideLeft', style: {textAnchor: 'middle', fill: '#64748b'} }} />
+                                                                    <RechartsTooltip cursor={{stroke: '#cbd5e1'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                                                                    <Legend wrapperStyle={{paddingTop: '10px'}} />
+                                                                    <Line type="monotone" name="Projected Stock" dataKey="projectedStock" stroke="#3b82f6" strokeWidth={3} dot={false} activeDot={{r: 6}} />
+                                                                    <Line type="stepAfter" name="Safety Threshold" dataKey="safetyLimit" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                                                                </LineChart>
+                                                            </ResponsiveContainer>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                                        <h3 className="text-lg font-bold text-slate-800 mb-4">Inventory Receipt History ({invPlantContext})</h3>
+                                                        <div className="overflow-x-auto rounded-lg border border-slate-200 max-h-[300px]">
+                                                            <table className="w-full text-left border-collapse">
+                                                                <thead className="bg-slate-50 sticky top-0 z-10">
+                                                                    <tr className="text-slate-500 text-sm border-b border-slate-200 shadow-sm">
+                                                                        <th className="p-3 font-medium">Date Received</th>
+                                                                        <th className="p-3 font-medium text-emerald-600">Volume Added (L)</th>
+                                                                        <th className="p-3 font-medium">Invoice / Reference</th>
+                                                                        <th className="p-3 font-medium text-center">Action</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {plantInvLogs.map(log => (
+                                                                        <tr key={log.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                                            <td className="p-3 text-sm text-slate-700">{log.date}</td>
+                                                                            <td className={`p-3 text-sm font-bold ${log.amount > 0 ? 'text-emerald-600' : 'text-amber-600'}`}>{log.amount > 0 ? '+' : ''}{log.amount} L</td>
+                                                                            <td className="p-3 text-sm text-slate-600">{log.reference}</td>
+                                                                            <td className="p-3 text-center">
+                                                                                <button onClick={() => handleDeleteReceipt(log)} className="text-slate-400 hover:text-red-500 transition-colors" title="Revert Receipt"><IconTrash size={16} /></button>
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                    {plantInvLogs.length === 0 && <tr><td colSpan="4" className="p-6 text-center text-slate-500 text-sm">No inventory receipts logged for {invPlantContext} yet.</td></tr>}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* MANAGE DATA TAB */}
+                            {activeTab === 'manage-data' && (
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                                        
+                                        {/* ENTRY FORM */}
+                                        <div className={`xl:col-span-1 bg-white p-6 rounded-xl shadow-sm border ${editingId ? 'border-amber-400 ring-2 ring-amber-100' : 'border-slate-100'}`}>
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                                    {editingId ? <span className="text-amber-500"><IconEdit size={20}/></span> : <span className="text-blue-500"><IconPlus size={20}/></span>}
+                                                    {editingId ? 'Edit Record' : 'Log Entry'}
+                                                </h3>
+                                                {editingId && <button onClick={cancelEdit} className="text-xs font-medium text-slate-500 hover:text-slate-800 bg-slate-100 px-2 py-1 rounded">Cancel Edit</button>}
+                                            </div>
+
+                                            <form onSubmit={handleSubmitRecord} className="space-y-4">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+                                                        <input type="date" name="date" value={formData.date} onChange={handleFormChange} required className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-1">Shift</label>
+                                                        <select name="shift" value={formData.shift} onChange={handleFormChange} className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                                            <option value="General">General</option>
+                                                            <option value="Shift A">Shift A (Morn)</option>
+                                                            <option value="Shift B">Shift B (Eve)</option>
+                                                            <option value="Shift C">Shift C (Night)</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-1">Plant / Facility</label>
+                                                    <select name="plant" value={formData.plant} onChange={handleFormChange} disabled={currentUser.role === 'plant'} className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-500 font-medium">
+                                                        {Object.keys(plantsConfig).map(plant => <option key={plant} value={plant}>{plant}</option>)}
+                                                    </select>
+                                                </div>
+                                                
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-1">Line</label>
+                                                    <select name="line" value={formData.line} onChange={handleFormChange} className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                                        {Object.keys(plantsConfig[formData.plant] || {}).map(line => <option key={line} value={line}>{line}</option>)}
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-1">Power Pack</label>
+                                                    <select name="powerPack" value={formData.powerPack} onChange={handleFormChange} className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                                        {(plantsConfig[formData.plant]?.[formData.line] || []).map(pack => <option key={pack} value={pack}>{pack}</option>)}
+                                                    </select>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-1">Tank Level</label>
+                                                        <input type="number" name="tankLevel" value={formData.tankLevel} onChange={handleFormChange} placeholder="e.g. 80" className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-1">Added (L)</label>
+                                                        <input type="number" name="amount" value={formData.amount} onChange={handleFormChange} min="0" step="0.1" placeholder="e.g. 40" className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                                                    </div>
+                                                </div>
+
+                                                {/* DIAGNOSTICS SECTION */}
+                                                <div className="pt-4 mt-2 border-t border-slate-100">
+                                                    <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2"><IconActivity size={16} className="text-blue-500"/> Machine Diagnostics (Optional)</h4>
+                                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                                        <div>
+                                                            <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wide">Pressure (bar)</label>
+                                                            <input type="number" name="pressure" value={formData.pressure} onChange={handleFormChange} step="0.1" placeholder="e.g. 120" className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none text-sm" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wide">Temperature (°C)</label>
+                                                            <input type="number" name="temperature" value={formData.temperature} onChange={handleFormChange} step="0.1" placeholder="e.g. 45" className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none text-sm" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 gap-4 mb-2">
+                                                        <div className="grid grid-cols-3 gap-4">
+                                                            <div>
+                                                                <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wide">Running Pump</label>
+                                                                <select name="runningPump" value={formData.runningPump} onChange={handleFormChange} className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none text-sm">
+                                                                    <option value="Main Pump">Main Pump</option><option value="Standby Pump">Standby Pump</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wide">Main Status</label>
+                                                                <select name="mainPumpStatus" value={formData.mainPumpStatus} onChange={handleFormChange} className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none text-sm">
+                                                                    <option value="OK">OK</option><option value="Not OK">Not OK</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wide">Stdby Status</label>
+                                                                <select name="standbyPumpStatus" value={formData.standbyPumpStatus} onChange={handleFormChange} className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none text-sm">
+                                                                    <option value="OK">OK</option><option value="Not OK">Not OK</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wide">ELC Status</label>
+                                                            <select name="elcStatus" value={formData.elcStatus} onChange={handleFormChange} className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none text-sm">
+                                                                <option value="OK">OK</option><option value="Cleaning Required">Cleaning Required</option><option value="Not OK">Not OK</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="pt-2 border-t border-slate-100">
+                                                    <label className="block text-sm font-medium text-slate-700 mb-1">Personnel / Reason</label>
+                                                    <input type="text" name="person" value={formData.person} onChange={handleFormChange} placeholder="e.g. Sanjay Rohilla" className="w-full p-2 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                                                </div>
+                                                <button type="submit" className={`w-full text-white font-medium py-2.5 px-4 rounded-md transition-colors mt-4 shadow-sm ${editingId ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                                                    {editingId ? 'Update Record' : 'Save Record'}
+                                                </button>
+                                            </form>
+                                        </div>
+
+                                        <div className="xl:col-span-2 space-y-6">
+                                            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+                                                    <h3 className="text-lg font-bold text-slate-800">Equipment Logs <span className="text-sm font-normal text-slate-500">({formatMonth(selectedMonth)})</span></h3>
+                                                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                                                        <button onClick={() => setShowOnlyTopUps(!showOnlyTopUps)} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors border ${showOnlyTopUps ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>
+                                                            {showOnlyTopUps ? 'Showing Top-ups' : 'Show All Logs'}
+                                                        </button>
+                                                        <select value={logLineFilter} onChange={(e) => setLogLineFilter(e.target.value)} className="p-1.5 text-sm border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                                            <option value="All">All Lines</option>
+                                                            {viewAvailableLines.map(line => <option key={line} value={line}>{line}</option>)}
+                                                        </select>
+                                                        <div className="text-sm text-slate-500 whitespace-nowrap">Total: {activeRecords.filter(r => (logLineFilter === 'All' || r.line === logLineFilter) && (!showOnlyTopUps || (Number(r.amount) || 0) > 0)).length}</div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="overflow-x-auto rounded-lg border border-slate-200 max-h-[800px]">
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead className="bg-slate-50 sticky top-0 z-10">
+                                                            <tr className="text-slate-500 text-sm border-b border-slate-200 shadow-sm">
+                                                                <th className="p-3 font-medium">Date/Shift</th>
+                                                                <th className="p-3 font-medium">Line / Pack</th>
+                                                                <th className="p-3 font-medium text-center">Level</th>
+                                                                <th className="p-3 font-medium text-center">Liters Added</th>
+                                                                <th className="p-3 font-medium">Diagnostics</th>
+                                                                <th className="p-3 font-medium">Personnel</th>
+                                                                <th className="p-3 font-medium text-center">Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {[...activeRecords].filter(r => (logLineFilter === 'All' || r.line === logLineFilter) && (!showOnlyTopUps || (Number(r.amount) || 0) > 0)).sort((a,b) => new Date(b.date) - new Date(a.date)).map(record => (
+                                                                <tr key={record.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${editingId === record.id ? 'bg-amber-50' : ''}`}>
+                                                                    <td className="p-3 text-sm text-slate-700 whitespace-nowrap"><div className="font-medium">{record.date}</div><div className="text-xs text-slate-500">{record.shift || 'General'}</div></td>
+                                                                    <td className="p-3">
+                                                                        <div className="flex items-center gap-2 mb-1"><span className="px-2 py-0.5 text-[10px] font-bold rounded-md uppercase" style={{backgroundColor: `${COLORS[record.line] || '#64748b'}20`, color: COLORS[record.line] || '#64748b'}}>{record.line}</span></div>
+                                                                        <div className="text-xs font-medium text-slate-700">{record.powerPack}</div>
+                                                                    </td>
+                                                                    <td className="p-3 text-sm text-slate-600 font-medium text-center">{record.tankLevel ? record.tankLevel : '--'}</td>
+                                                                    <td className="p-3 text-sm font-bold text-slate-800 text-center">{record.amount > 0 ? <span className="text-emerald-600">+{record.amount} L</span> : <span className="text-slate-400 font-normal">0 L</span>}</td>
+                                                                    <td className="p-3 text-[11px] leading-tight text-slate-600 min-w-[140px]">
+                                                                        {record.pressure || record.temperature ? <div className="font-semibold text-slate-800">{record.pressure ? `P: ${record.pressure}bar ` : ''}{record.temperature ? `T: ${record.temperature}°C` : ''}</div> : null}
+                                                                        {record.runningPump ? <div className="mt-0.5">Run: {record.runningPump === 'Main Pump' ? 'Main' : 'Stdby'}</div> : null}
+                                                                        {(record.mainPumpStatus || record.pumpStatus || record.standbyPumpStatus) ? (
+                                                                            <div className="mt-0.5">Main: <span className={(record.mainPumpStatus || record.pumpStatus) === 'OK' ? 'text-blue-600 font-medium' : 'text-red-500 font-bold'}>{record.mainPumpStatus || record.pumpStatus || '--'}</span> <span className="mx-1 text-slate-300">|</span> Stdby: <span className={record.standbyPumpStatus === 'OK' ? 'text-blue-600 font-medium' : record.standbyPumpStatus === 'Not OK' ? 'text-red-500 font-bold' : 'text-slate-500'}>{record.standbyPumpStatus || '--'}</span></div>
+                                                                        ) : null}
+                                                                        {record.elcStatus ? <div className="mt-0.5">ELC: <span className={record.elcStatus === 'OK' ? 'text-emerald-600 font-medium' : 'text-amber-600 font-bold'}>{record.elcStatus}</span></div> : null}
+                                                                        {!record.pressure && !record.temperature && !record.runningPump && !record.elcStatus ? <span className="text-slate-400 italic">No diagnostics</span> : ''}
+                                                                    </td>
+                                                                    <td className="p-3 text-xs text-slate-600">{record.person || '--'}</td>
+                                                                    <td className="p-3 text-center">
+                                                                        <div className="flex items-center justify-center gap-3">
+                                                                            <button onClick={() => handleEdit(record)} className="text-slate-400 hover:text-blue-500 transition-colors" title="Edit Record"><IconEdit size={16} /></button>
+                                                                            <button onClick={() => handleDelete(record.id)} className="text-slate-400 hover:text-red-500 transition-colors" title="Delete Record"><IconTrash size={16} /></button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                            {activeRecords.filter(r => (logLineFilter === 'All' || r.line === logLineFilter) && (!showOnlyTopUps || (Number(r.amount) || 0) > 0)).length === 0 && (
+                                                                <tr><td colSpan="7" className="p-8 text-center text-slate-500 text-sm">No records match your filters.</td></tr>
+                                                            )}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* PLANT CONFIG TAB (ADMIN ONLY) */}
+                            {activeTab === 'plant-config' && currentUser.role === 'admin' && (
+                                <div className="space-y-6">
+                                    {configError && (
+                                        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg flex items-center justify-between shadow-sm animate-pulse">
+                                            <div className="flex items-center gap-3 text-red-700"><IconWarning size={20} /><span className="font-semibold">{configError}</span></div>
+                                            <button onClick={() => setConfigError('')} className="text-red-500 hover:text-red-700"><IconX size={20}/></button>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                        
+                                        {/* Security & Access Control */}
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 lg:col-span-3">
+                                            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                                <IconLock size={20} className="text-slate-400" /> Access Control & Passwords
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                                                    <h4 className="font-bold text-slate-700 mb-1">Global Admin Account</h4>
+                                                    <p className="text-xs text-slate-500 mb-3">Controls all plants and configurations.</p>
+                                                    <div className="flex gap-2">
+                                                        <input type="text" id="adminPassInput" defaultValue={authCredentials.admin} className="flex-1 p-2 border border-slate-300 rounded outline-none text-sm font-medium" />
+                                                        <button onClick={() => updateAdminPassword(document.getElementById('adminPassInput').value)} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded text-sm font-bold transition-colors">Update</button>
+                                                    </div>
+                                                </div>
+                                                <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3">
+                                                    <h4 className="font-bold text-slate-700 mb-1">Plant Accounts</h4>
+                                                    <p className="text-xs text-slate-500 mb-3">Restricts users to their designated facility view.</p>
+                                                    <div className="max-h-[150px] overflow-y-auto space-y-2 pr-2">
+                                                        {Object.keys(plantsConfig).map(p => (
+                                                            <div key={p} className="flex items-center justify-between gap-4">
+                                                                <span className="font-bold text-sm text-slate-700 w-1/3 truncate" title={p}>{p}</span>
+                                                                <div className="flex gap-2 flex-1">
+                                                                    <input type="text" id={`pass_${p}`} defaultValue={authCredentials.plants[p] || '1234'} className="flex-1 p-1.5 border border-slate-300 rounded outline-none text-sm font-medium" />
+                                                                    <button onClick={() => updatePlantPassword(p, document.getElementById(`pass_${p}`).value)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors">Set</button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                                            <div>
+                                                <h3 className="text-lg font-bold text-slate-800 mb-2">Manage Plants / Facilities</h3>
+                                                <p className="text-xs text-slate-500 mb-4 font-semibold text-red-500">Safeguard: Cannot delete a plant with existing records.</p>
+                                            </div>
+                                            <div className="space-y-4">
+                                                <form onSubmit={handleAddPlant} className="flex gap-2">
+                                                    <input type="text" value={newPlantInput} onChange={(e) => setNewPlantInput(e.target.value)} placeholder="New Plant Name" required className="flex-1 p-2 border border-slate-300 rounded-md outline-none focus:border-blue-500 text-sm font-bold uppercase" />
+                                                    <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md font-medium text-sm">Add</button>
+                                                </form>
+                                                <div className="border border-slate-200 rounded-lg max-h-[200px] overflow-y-auto p-2 space-y-2">
+                                                    {Object.keys(plantsConfig).map(plant => (
+                                                        <div key={plant} className="flex justify-between items-center bg-slate-50 px-3 py-1.5 rounded-md border border-slate-100">
+                                                            {editingPlantId === plant ? (
+                                                                <div className="flex flex-1 items-center gap-2 mr-2">
+                                                                    <input type="text" value={editPlantNameInput} onChange={(e) => setEditPlantNameInput(e.target.value)} className="flex-1 p-1 text-sm border border-slate-300 rounded outline-none focus:border-blue-500 font-bold" autoFocus />
+                                                                    <button onClick={() => handleRenamePlant(plant)} className="text-emerald-600 hover:text-emerald-700 transition-colors" title="Save name"><IconCheck size={18} /></button>
+                                                                    <button onClick={() => setEditingPlantId(null)} className="text-slate-400 hover:text-slate-600 transition-colors" title="Cancel"><IconX size={18} /></button>
+                                                                </div>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="font-bold text-slate-800 text-sm">{plant}</span>
+                                                                    <div className="flex items-center gap-3">
+                                                                        <button onClick={() => { setEditingPlantId(plant); setEditPlantNameInput(plant); }} className="text-slate-400 hover:text-blue-500 transition-colors" title="Rename plant"><IconEdit size={16} /></button>
+                                                                        <button onClick={() => handleRemovePlant(plant)} className="text-slate-400 hover:text-red-500 transition-colors" title="Delete plant"><IconTrash size={16} /></button>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                                            <div>
+                                                <h3 className="text-lg font-bold text-slate-800 mb-2">Configure Lines</h3>
+                                                <div className="flex items-center gap-2 mb-4">
+                                                    <span className="text-xs font-bold text-slate-500 uppercase">For Plant:</span>
+                                                    <select value={selectedConfigPlant} onChange={(e) => setSelectedConfigPlant(e.target.value)} className="p-1 text-sm border border-slate-300 rounded font-semibold text-slate-700 flex-1 outline-none">
+                                                        {Object.keys(plantsConfig).map(p => <option key={p} value={p}>{p}</option>)}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-4">
+                                                <form onSubmit={handleAddLine} className="flex gap-2">
+                                                    <input type="text" value={newLineInput} onChange={(e) => setNewLineInput(e.target.value)} placeholder="Line Code (e.g. AP4)" required className="flex-1 p-2 border border-slate-300 rounded-md outline-none focus:border-blue-500 text-sm font-bold uppercase" />
+                                                    <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md font-medium text-sm">Add</button>
+                                                </form>
+                                                <div className="border border-slate-200 rounded-lg max-h-[200px] overflow-y-auto p-2 space-y-2">
+                                                    {Object.keys(plantsConfig[selectedConfigPlant] || {}).map(line => (
+                                                        <div key={line} className="flex justify-between items-center bg-slate-50 px-3 py-1.5 rounded-md border border-slate-100">
+                                                            <span className="font-bold text-slate-800 text-sm flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{backgroundColor: COLORS[line] || COLORS.Other}}></span>{line}</span>
+                                                            <button onClick={() => handleRemoveLine(line)} className="text-slate-400 hover:text-red-500 transition-colors" title="Delete line"><IconTrash size={16} /></button>
+                                                        </div>
+                                                    ))}
+                                                    {Object.keys(plantsConfig[selectedConfigPlant] || {}).length === 0 && <span className="text-xs text-slate-400 block text-center py-2">No lines assigned to this plant.</span>}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                                            <div>
+                                                <h3 className="text-lg font-bold text-slate-800 mb-2">Configure Power Packs</h3>
+                                                <div className="flex items-center gap-2 mb-4">
+                                                    <span className="text-xs font-bold text-slate-500 uppercase">Target Line:</span>
+                                                    <select value={selectedConfigLine} onChange={(e) => setSelectedConfigLine(e.target.value)} className="p-1 text-sm border border-slate-300 rounded font-semibold text-slate-700 flex-1 outline-none">
+                                                        {Object.keys(plantsConfig[selectedConfigPlant] || {}).map(l => <option key={l} value={l}>{l}</option>)}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-4">
+                                                {selectedConfigLine ? (
+                                                    <>
+                                                        <form onSubmit={handleAddPowerPack} className="flex gap-2">
+                                                            <input type="text" value={newPackInput} onChange={(e) => setNewPackInput(e.target.value)} placeholder="Power Pack Name" required className="flex-1 p-2 border border-slate-300 rounded-md outline-none focus:border-blue-500 text-sm" />
+                                                            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium text-sm">Add</button>
+                                                        </form>
+                                                        <div className="border border-slate-200 rounded-lg max-h-[200px] overflow-y-auto p-2 space-y-1">
+                                                            {(plantsConfig[selectedConfigPlant]?.[selectedConfigLine] || []).map(pack => (
+                                                                <div key={pack} className="flex justify-between items-center bg-slate-50 px-2.5 py-1 rounded border border-slate-100 text-xs text-slate-700">
+                                                                    <span>{pack}</span>
+                                                                    <button onClick={() => handleRemovePowerPack(pack)} className="text-slate-400 hover:text-red-500 transition-colors" title="Delete power pack"><IconTrash size={14} /></button>
+                                                                </div>
+                                                            ))}
+                                                            {(plantsConfig[selectedConfigPlant]?.[selectedConfigLine] || []).length === 0 && <div className="text-center text-xs text-slate-400 py-4">No power packs added yet.</div>}
+                                                        </div>
+                                                    </>
+                                                ) : <div className="text-center text-xs text-slate-400 py-4">Select a line to configure power packs.</div>}
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            )}
+
+                        </main>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
